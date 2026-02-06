@@ -1,11 +1,12 @@
 """FastAPI routes for AI School Assistant admin panel."""
 
+import asyncio
 import logging
 import os
 import shutil
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -34,6 +35,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:3700",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -154,20 +156,22 @@ async def add_student(data: StudentCreate):
     )
     await save_message(db, student["id"], "assistant", welcome_msg, intent="greeting")
 
-    # Also send via Telegram userbot if available
+    # Send Telegram greeting in background (has 30-120s anti-detection delay)
     if _userbot:
-        try:
-            telegram_id = await _userbot.send_greeting(username)
-            if telegram_id:
-                await update_student(db, student["id"], {
-                    "telegram_id": telegram_id,
-                    "status": "active",
-                })
-                _userbot.register_student_id(telegram_id)
-                student["telegram_id"] = telegram_id
-                student["status"] = "active"
-        except Exception as e:
-            logger.error(f"Failed to greet @{username}: {e}")
+        async def _greet_in_background(student_id: str, uname: str):
+            try:
+                telegram_id = await _userbot.send_greeting(uname)
+                if telegram_id:
+                    await update_student(db, student_id, {
+                        "telegram_id": telegram_id,
+                        "status": "active",
+                    })
+                    _userbot.register_student_id(telegram_id)
+                    logger.info(f"Greeting sent to @{uname} (telegram_id={telegram_id})")
+            except Exception as e:
+                logger.error(f"Failed to greet @{uname}: {e}")
+
+        asyncio.create_task(_greet_in_background(student["id"], username))
 
     return student
 

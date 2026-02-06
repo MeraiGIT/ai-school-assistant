@@ -46,6 +46,11 @@ async def handle_student_message(
     if not student:
         return ""
 
+    # Don't respond to paused students
+    if student.get("status") == "paused":
+        logger.info(f"Ignoring message from paused student {student['id']}")
+        return ""
+
     student_id = student["id"]
     level = student.get("level", "beginner")
 

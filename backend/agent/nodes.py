@@ -191,6 +191,18 @@ async def handle_greeting(state: TeachingState) -> dict:
     }
 
 
+async def handle_off_topic(state: TeachingState) -> dict:
+    """Handle off-topic questions with a polite redirect."""
+    return {
+        "answer": (
+            "Ха, хороший вопрос, но это немного не мой профиль 😅\n\n"
+            "Я специализируюсь на генеративном AI — модели, промпты, RAG, "
+            "диффузия, трансформеры и всё в этом духе.\n\n"
+            "Давай лучше про курс — что тебя интересует?"
+        )
+    }
+
+
 async def escalate_to_human(state: TeachingState) -> dict:
     """Handle escalation when student is stuck."""
     return {

@@ -12,6 +12,7 @@ from agent.nodes import (
     generate_answer,
     generate_practice,
     handle_greeting,
+    handle_off_topic,
     escalate_to_human,
 )
 
@@ -37,6 +38,9 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
     async def _greeting(state: TeachingState) -> dict:
         return await handle_greeting(state)
 
+    async def _off_topic(state: TeachingState) -> dict:
+        return await handle_off_topic(state)
+
     async def _escalate(state: TeachingState) -> dict:
         return await escalate_to_human(state)
 
@@ -48,6 +52,7 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
     workflow.add_node("answer_node", _answer)
     workflow.add_node("practice_node", _practice)
     workflow.add_node("greeting_node", _greeting)
+    workflow.add_node("off_topic_node", _off_topic)
     workflow.add_node("escalate_node", _escalate)
 
     workflow.set_entry_point("classify_node")
@@ -60,7 +65,7 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
         if intent == "greeting":
             return "greeting_node"
         if intent == "off_topic":
-            return "greeting_node"
+            return "off_topic_node"
         return "retrieve_node"
 
     workflow.add_conditional_edges(
@@ -69,6 +74,7 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
         {
             "escalate_node": "escalate_node",
             "greeting_node": "greeting_node",
+            "off_topic_node": "off_topic_node",
             "retrieve_node": "retrieve_node",
         },
     )
@@ -92,6 +98,7 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
 
     workflow.add_edge("practice_node", END)
     workflow.add_edge("greeting_node", END)
+    workflow.add_edge("off_topic_node", END)
     workflow.add_edge("escalate_node", END)
 
     return workflow.compile()
