@@ -10,6 +10,18 @@ import {
   type Student,
   type Message,
 } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { UserPlus, Trash2, MessageCircle } from "lucide-react";
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -82,134 +94,155 @@ export default function StudentsPage() {
     }
   }
 
-  const statusColors: Record<string, string> = {
-    active: "bg-green-100 text-green-800",
-    pending: "bg-yellow-100 text-yellow-800",
-    paused: "bg-gray-100 text-gray-800",
-  };
-
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Students</h1>
+      <h1 className="text-3xl font-semibold text-[#1D1D1F] mb-8 tracking-tight">
+        Students
+      </h1>
 
       {/* Add student form */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="glass rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-semibold text-[#1D1D1F] mb-4 flex items-center gap-2">
+          <UserPlus className="w-5 h-5 text-[#007AFF]" />
           Add Student
         </h2>
         <form onSubmit={handleAdd} className="flex gap-3 items-end">
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[#1D1D1F]/80 mb-1.5">
               Telegram Username
             </label>
-            <input
+            <Input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="@username"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[#1D1D1F]/80 mb-1.5">
               Display Name (optional)
             </label>
-            <input
+            <Input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Ivan Ivanov"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <button
+          <Button
             type="submit"
             disabled={adding || !username.trim()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
+            className="bg-[#007AFF] hover:bg-[#0066DD] text-white shadow-sm"
           >
             {adding ? "Adding..." : "Add Student"}
-          </button>
+          </Button>
         </form>
       </div>
 
       <div className="flex gap-6">
         {/* Student list */}
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="flex-1 glass rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-black/[0.04]">
+            <h2 className="text-lg font-semibold text-[#1D1D1F]">
               Student List ({students.length})
             </h2>
           </div>
 
           {students.length === 0 ? (
-            <p className="p-6 text-gray-500 text-center">
+            <p className="p-6 text-[#86868B] text-center">
               No students added yet.
             </p>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-black/[0.04]">
               {students.map((student) => (
                 <div
                   key={student.id}
-                  className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${
-                    selectedStudent?.id === student.id ? "bg-blue-50" : ""
-                  }`}
+                  className={cn(
+                    "px-6 py-4 cursor-pointer transition-colors duration-150",
+                    selectedStudent?.id === student.id
+                      ? "bg-[#007AFF]/8 border-l-2 border-[#007AFF] pl-[22px]"
+                      : "hover:bg-[#007AFF]/[0.03]"
+                  )}
                   onClick={() => viewConversation(student)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-[#1D1D1F]">
                         @{student.telegram_username}
                         {student.display_name && (
-                          <span className="text-gray-500 ml-2">
+                          <span className="text-[#86868B] ml-2">
                             ({student.display_name})
                           </span>
                         )}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                            statusColors[student.status] || statusColors.pending
-                          }`}
+                      <div className="flex items-center gap-2 mt-2">
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-xs border",
+                            student.status === "active" &&
+                              "bg-[#34C759]/15 text-[#248A3D] border-[#34C759]/30",
+                            student.status === "pending" &&
+                              "bg-[#FF9500]/15 text-[#C93400] border-[#FF9500]/30",
+                            student.status === "paused" &&
+                              "bg-[#8E8E93]/15 text-[#636366] border-[#8E8E93]/30"
+                          )}
                         >
                           {student.status}
-                        </span>
-                        <select
+                        </Badge>
+                        <Select
                           value={student.level}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleLevelChange(student.id, e.target.value);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs border border-gray-200 rounded px-1 py-0.5"
+                          onValueChange={(val) =>
+                            handleLevelChange(student.id, val)
+                          }
                         >
-                          <option value="beginner">beginner</option>
-                          <option value="intermediate">intermediate</option>
-                          <option value="advanced">advanced</option>
-                        </select>
-                        <select
+                          <SelectTrigger
+                            size="sm"
+                            className="h-6 w-[110px] text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="beginner">beginner</SelectItem>
+                            <SelectItem value="intermediate">
+                              intermediate
+                            </SelectItem>
+                            <SelectItem value="advanced">advanced</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select
                           value={student.status}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange(student.id, e.target.value);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs border border-gray-200 rounded px-1 py-0.5"
+                          onValueChange={(val) =>
+                            handleStatusChange(student.id, val)
+                          }
                         >
-                          <option value="pending">pending</option>
-                          <option value="active">active</option>
-                          <option value="paused">paused</option>
-                        </select>
+                          <SelectTrigger
+                            size="sm"
+                            className="h-6 w-[90px] text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">pending</SelectItem>
+                            <SelectItem value="active">active</SelectItem>
+                            <SelectItem value="paused">paused</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(student.id);
                       }}
-                      className="text-red-500 hover:text-red-700 text-sm"
+                      className="text-[#86868B] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10"
                     >
-                      Remove
-                    </button>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -218,36 +251,45 @@ export default function StudentsPage() {
         </div>
 
         {/* Conversation panel */}
-        <div className="w-96 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col max-h-[600px]">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">
+        <div className="w-96 glass rounded-2xl flex flex-col max-h-[600px]">
+          <div className="px-6 py-4 border-b border-black/[0.04]">
+            <h2 className="text-lg font-semibold text-[#1D1D1F] flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-[#007AFF]" />
               {selectedStudent
-                ? `Chat: @${selectedStudent.telegram_username}`
+                ? `@${selectedStudent.telegram_username}`
                 : "Select a student"}
             </h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
             {!selectedStudent ? (
-              <p className="text-gray-400 text-center text-sm mt-8">
+              <p className="text-[#AEAEB2] text-center text-sm mt-8">
                 Click a student to view their conversation
               </p>
             ) : messages.length === 0 ? (
-              <p className="text-gray-400 text-center text-sm mt-8">
+              <p className="text-[#AEAEB2] text-center text-sm mt-8">
                 No messages yet
               </p>
             ) : (
               messages.map((msg) => (
                 <div
                   key={msg.id}
-                  className={`text-sm rounded-lg p-3 max-w-[85%] ${
+                  className={cn(
+                    "text-sm p-3 max-w-[85%]",
                     msg.role === "student"
-                      ? "bg-gray-100 text-gray-900"
-                      : "bg-blue-100 text-blue-900 ml-auto"
-                  }`}
+                      ? "bg-[#E9E9EB] text-[#1D1D1F] rounded-2xl rounded-bl-md"
+                      : "bg-[#007AFF] text-white ml-auto rounded-2xl rounded-br-md"
+                  )}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  <p className="text-xs opacity-50 mt-1">
+                  <p
+                    className={cn(
+                      "text-xs mt-1",
+                      msg.role === "student"
+                        ? "text-[#86868B]"
+                        : "text-white/60"
+                    )}
+                  >
                     {new Date(msg.created_at).toLocaleTimeString()}
                     {msg.intent && ` [${msg.intent}]`}
                   </p>

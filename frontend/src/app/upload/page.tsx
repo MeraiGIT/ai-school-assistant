@@ -7,6 +7,26 @@ import {
   deleteDocument,
   type Document,
 } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { CloudUpload, Loader2, Trash2 } from "lucide-react";
 
 export default function UploadPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -60,42 +80,42 @@ export default function UploadPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">
+      <h1 className="text-3xl font-semibold text-[#1D1D1F] mb-8 tracking-tight">
         Upload Course Materials
       </h1>
 
       {/* Upload form */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <div className="glass rounded-2xl p-6 mb-6">
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[#1D1D1F]/80 mb-1.5">
               Title (optional)
             </label>
-            <input
+            <Input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Document title"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-[#1D1D1F]/80 mb-1.5">
               Module
             </label>
-            <select
-              value={module}
-              onChange={(e) => setModule(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="general">General</option>
-              <option value="intro">Introduction</option>
-              <option value="llm">LLM Basics</option>
-              <option value="prompting">Prompt Engineering</option>
-              <option value="rag">RAG</option>
-              <option value="agents">AI Agents</option>
-              <option value="fine-tuning">Fine-tuning</option>
-            </select>
+            <Select value={module} onValueChange={setModule}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="general">General</SelectItem>
+                <SelectItem value="intro">Introduction</SelectItem>
+                <SelectItem value="llm">LLM Basics</SelectItem>
+                <SelectItem value="prompting">Prompt Engineering</SelectItem>
+                <SelectItem value="rag">RAG</SelectItem>
+                <SelectItem value="agents">AI Agents</SelectItem>
+                <SelectItem value="fine-tuning">Fine-tuning</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -106,55 +126,25 @@ export default function UploadPage() {
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
+          className={cn(
+            "border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300",
             dragOver
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 hover:border-gray-400"
-          }`}
+              ? "border-[#007AFF]/50 bg-[#007AFF]/5 shadow-lg shadow-[#007AFF]/5 scale-[1.005]"
+              : "border-[#1D1D1F]/10 hover:border-[#1D1D1F]/20 hover:bg-black/[0.01]"
+          )}
         >
           {uploading ? (
-            <div className="text-gray-500">
-              <svg
-                className="animate-spin h-8 w-8 mx-auto mb-3 text-blue-500"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
+            <div className="text-[#86868B]">
+              <Loader2 className="w-8 h-8 mx-auto mb-3 text-[#007AFF] animate-spin" />
               Processing document...
             </div>
           ) : (
             <>
-              <svg
-                className="w-10 h-10 mx-auto mb-3 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
-              <p className="text-gray-600 mb-2">
+              <CloudUpload className="w-10 h-10 mx-auto mb-3 text-[#AEAEB2]" />
+              <p className="text-[#1D1D1F]/70 mb-2">
                 Drag and drop a file here, or click to select
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-[#AEAEB2]">
                 Supports PDF, DOCX, and TXT files
               </p>
               <input
@@ -164,81 +154,73 @@ export default function UploadPage() {
                 className="hidden"
                 id="file-input"
               />
-              <label
-                htmlFor="file-input"
-                className="mt-4 inline-block cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors"
-              >
-                Select File
-              </label>
+              <Button asChild className="mt-4 bg-[#007AFF] hover:bg-[#0066DD] text-white shadow-sm">
+                <label htmlFor="file-input" className="cursor-pointer">
+                  Select File
+                </label>
+              </Button>
             </>
           )}
         </div>
       </div>
 
       {/* Document list */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
+      <div className="glass rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-black/[0.04]">
+          <h2 className="text-lg font-semibold text-[#1D1D1F]">
             Uploaded Documents ({documents.length})
           </h2>
         </div>
 
         {documents.length === 0 ? (
-          <p className="p-6 text-gray-500 text-center">
+          <p className="p-6 text-[#86868B] text-center">
             No documents uploaded yet.
           </p>
         ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Title
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Module
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Chunks
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Uploaded
-                </th>
-                <th className="px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-black/[0.04] hover:bg-transparent">
+                <TableHead className="px-6">Title</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Module</TableHead>
+                <TableHead>Chunks</TableHead>
+                <TableHead>Uploaded</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {documents.map((doc) => (
-                <tr key={doc.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                <TableRow
+                  key={doc.id}
+                  className="border-black/[0.04] hover:bg-[#007AFF]/[0.03] transition-colors"
+                >
+                  <TableCell className="px-6 font-medium text-[#1D1D1F]">
                     {doc.title}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 uppercase">
-                    {doc.file_type}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {doc.module}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {doc.chunk_count}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs uppercase font-medium">
+                      {doc.file_type}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-[#86868B]">{doc.module}</TableCell>
+                  <TableCell className="text-[#86868B]">{doc.chunk_count}</TableCell>
+                  <TableCell className="text-[#86868B]">
                     {new Date(doc.uploaded_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
+                  </TableCell>
+                  <TableCell className="text-right pr-6">
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleDelete(doc.id)}
-                      className="text-red-600 hover:text-red-800 text-sm"
+                      className="text-[#86868B] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10"
                     >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </div>
     </div>
