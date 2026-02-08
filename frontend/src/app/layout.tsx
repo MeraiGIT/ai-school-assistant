@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   title: "AI School Assistant - Admin",
   description: "Admin panel for AI School Assistant",
   icons: {
-    icon: "/favicon.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 };
