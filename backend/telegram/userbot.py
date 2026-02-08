@@ -37,8 +37,10 @@ from telegram.human_behavior import (
     get_thinking_delay,
     get_first_contact_delay,
     get_message_interval,
+    get_split_message_delay,
     MessageRateLimiter,
     split_long_message,
+    split_response_messages,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,10 @@ class SchoolUserbot:
         # Concurrency: process only 1 incoming message at a time
         # This prevents API call bursts when multiple students message simultaneously
         self._message_semaphore = asyncio.Semaphore(1)
+
+        # Track new incoming messages per user — allows interrupting response
+        # delivery when the student sends a follow-up mid-response
+        self._incoming_event: dict[int, asyncio.Event] = {}
 
         # Rate limiter: conservative limits to stay well below Telegram thresholds
         self._rate_limiter = MessageRateLimiter(
@@ -171,38 +177,48 @@ class SchoolUserbot:
         if not text:
             return
 
-        # Strictly check if sender is a registered student
-        if sender_id not in self._known_student_ids:
-            # Unknown sender - ignore silently (don't even query the DB)
-            # The callback in main.py can try username-based lookup,
-            # but only if we let it through. We do, so the DB can resolve them.
-            # However, we must not respond to truly unknown people.
-            pass
-
         if not self._on_student_message:
             return
+
+        # Signal that a new message arrived from this user.
+        # If _send_response_as_messages is currently sending parts for an
+        # older response, it will detect this and stop early.
+        self._incoming_event.setdefault(sender_id, asyncio.Event()).set()
 
         # Acquire semaphore - only 1 message processed at a time
         async with self._message_semaphore:
             try:
+                # Clear interrupt flag — we are now the active message
+                self._incoming_event[sender_id].clear()
+
                 logger.info(f'Message from @{username} (ID:{sender_id}): {text[:80]}...')
 
-                # Simulate reading delay
-                read_delay = get_read_delay()
+                # Simulate reading delay (varies by message length)
+                read_delay = get_read_delay(len(text))
                 await asyncio.sleep(read_delay)
 
                 # Mark as read
                 await self.client.send_read_acknowledge(event.chat_id)
 
-                # Simulate thinking delay
-                think_delay = get_thinking_delay()
-                await asyncio.sleep(think_delay)
+                # Show typing indicator while thinking + generating response.
+                # Without this there's a 10-20s dead gap between the read ack
+                # and the first response message.
+                typing_task = asyncio.create_task(self._keep_typing(sender_id))
+                try:
+                    think_delay = get_thinking_delay(len(text))
+                    await asyncio.sleep(think_delay)
 
-                # Get response from the teaching agent
-                response = await self._on_student_message(sender_id, username, text)
+                    # Get response from the teaching agent
+                    response = await self._on_student_message(sender_id, username, text)
+                finally:
+                    typing_task.cancel()
+                    try:
+                        await typing_task
+                    except asyncio.CancelledError:
+                        pass
 
                 if response:
-                    await self._send_message_human_like(sender_id, response)
+                    await self._send_response_as_messages(sender_id, response)
 
             except FloodWaitError as e:
                 logger.warning(f'Flood wait: sleeping {e.seconds}s')
@@ -210,19 +226,96 @@ class SchoolUserbot:
             except Exception as e:
                 logger.error(f'Error handling message: {e}')
 
+    async def _keep_typing(self, user_id: int):
+        """Maintain 'typing...' indicator until cancelled.
+
+        Refreshes every 4.5 seconds (Telegram's typing indicator
+        expires after ~5s).
+        """
+        try:
+            while True:
+                async with self.client.action(user_id, 'typing'):
+                    await asyncio.sleep(4.5)
+        except asyncio.CancelledError:
+            pass
+
+    async def _send_response_as_messages(self, user_id: int, text: str):
+        """Send an LLM response as multiple Telegram messages.
+
+        Uses ---SPLIT--- delimiter from the LLM to determine message boundaries.
+        Each part gets human-like typing simulation with variable delays
+        that mimic how a real person sends bursts of messages.
+
+        If a new message arrives from the student while we're sending,
+        we stop early — a real person would notice the incoming message
+        and switch to addressing it instead of finishing their old thought.
+        """
+        parts = split_response_messages(text)
+
+        for i, part in enumerate(parts):
+            # Check if the student sent a new message — stop sending the
+            # old response so we can process the new one promptly.
+            # Always send at least the first part (i > 0).
+            if i > 0:
+                event = self._incoming_event.get(user_id)
+                if event and event.is_set():
+                    logger.info(
+                        f'Interrupting response to {user_id}: new message received '
+                        f'(sent {i}/{len(parts)} parts)'
+                    )
+                    break
+
+            await self._rate_limiter.acquire()
+
+            try:
+                # Simulate typing — proportional to message length
+                typing_time = get_typing_delay(len(part))
+                # Refresh typing indicator every 4.5s for long typing times
+                remaining = typing_time
+                while remaining > 0:
+                    chunk = min(remaining, 4.5)
+                    async with self.client.action(user_id, 'typing'):
+                        await asyncio.sleep(chunk)
+                    remaining -= chunk
+
+                await self.client.send_message(user_id, part)
+                logger.info(
+                    f'Sent message to {user_id} (part {i+1}/{len(parts)}, '
+                    f'{len(part)} chars). Rate: {self._rate_limiter.stats}'
+                )
+
+                # Variable delay between parts based on content
+                if i < len(parts) - 1:
+                    next_part = parts[i + 1]
+                    interval = get_split_message_delay(next_part)
+                    await asyncio.sleep(interval)
+
+            except FloodWaitError as e:
+                logger.warning(f'Flood wait on send: sleeping {e.seconds}s')
+                await asyncio.sleep(e.seconds)
+                try:
+                    await self.client.send_message(user_id, part)
+                except Exception as retry_err:
+                    logger.error(f'Retry failed for {user_id}: {retry_err}')
+                    return
+            except PeerIdInvalidError:
+                logger.error(f'Invalid peer ID: {user_id}')
+                return
+            except Exception as e:
+                logger.error(f'Error sending message to {user_id}: {e}')
+                return
+
     async def _send_message_human_like(self, user_id: int, text: str):
-        """Send a message with human-like typing simulation.
+        """Send a single text with human-like typing simulation.
+        Used for greetings and simple one-off messages.
         Long messages are split into parts with delays between them.
-        Each part goes through the rate limiter.
         """
         parts = split_long_message(text, max_length=2000)
 
         for i, part in enumerate(parts):
-            # Wait for rate limiter
             await self._rate_limiter.acquire()
 
             try:
-                # Simulate typing
                 typing_time = get_typing_delay(len(part))
                 async with self.client.action(user_id, 'typing'):
                     await asyncio.sleep(typing_time)
@@ -233,7 +326,6 @@ class SchoolUserbot:
                     f'{len(part)} chars). Rate: {self._rate_limiter.stats}'
                 )
 
-                # Delay between parts of a multi-part message
                 if i < len(parts) - 1:
                     interval = get_message_interval()
                     await asyncio.sleep(interval)
@@ -241,7 +333,6 @@ class SchoolUserbot:
             except FloodWaitError as e:
                 logger.warning(f'Flood wait on send: sleeping {e.seconds}s')
                 await asyncio.sleep(e.seconds)
-                # Retry this part once after flood wait
                 try:
                     await self.client.send_message(user_id, part)
                 except Exception as retry_err:
@@ -308,14 +399,10 @@ class SchoolUserbot:
             await asyncio.sleep(delay)
 
             greeting = (
-                "Привет! \U0001f44b\n\n"
-                "Я — AI-ассистент курса по генеративному AI. "
-                "Буду помогать с материалами, отвечать на вопросы "
-                "и давать практические задания.\n\n"
-                "Спрашивай что угодно по курсу — я на связи! \U0001f393"
+                "Здравствуйте! Я Павел, буду помогать Вам разобраться в курсе по генеративному AI)"
             )
 
-            await self._send_message_human_like(entity.id, greeting)
+            await self._send_response_as_messages(entity.id, greeting)
             return entity.id
 
         except UsernameNotOccupiedError:

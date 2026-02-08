@@ -116,6 +116,8 @@ class TeachingAgentRunner:
         question: str,
         chat_history: list[dict] = None,
         student_level: str = "beginner",
+        student_memory: str = "",
+        formality: str = "formal",
     ) -> str:
         """Get a teaching response for a student question."""
         state: TeachingState = {
@@ -124,9 +126,11 @@ class TeachingAgentRunner:
             "chat_history": chat_history or [],
             "intent": "",
             "retrieved_docs": "",
+            "student_memory": student_memory,
             "answer": "",
             "student_level": student_level,
             "needs_human": False,
+            "formality": formality,
         }
 
         result = await self.agent.ainvoke(state)

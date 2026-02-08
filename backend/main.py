@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 import sys
+from datetime import datetime, timezone
 
 import uvicorn
 
@@ -18,11 +19,15 @@ from database import (
     list_students,
 )
 from agent.teaching_agent import TeachingAgentRunner
+from agent.nodes import detect_formality
 from rag.knowledge_base import KnowledgeBase
 from telegram.userbot import SchoolUserbot
-from api import app, set_userbot, get_database
+from api import app, set_userbot, set_memory_manager, get_database
 
 logger = logging.getLogger(__name__)
+
+# Module-level memory manager (None if Letta is disabled)
+_memory_manager = None
 
 
 async def handle_student_message(
@@ -54,12 +59,23 @@ async def handle_student_message(
     student_id = student["id"]
     level = student.get("level", "beginner")
 
-    # Save incoming message
-    await save_message(db, student_id, "student", text)
-
-    # Get chat history
+    # Get chat history BEFORE saving current message — otherwise the
+    # student's message appears in both ИСТОРИЯ ЧАТА and ВОПРОС СТУДЕНТА,
+    # wasting tokens and potentially confusing the model.
     history = await get_conversation_history(db, student_id, limit=10)
     chat_history = [{"role": m["role"], "content": m["content"]} for m in history]
+
+    # Save incoming message (after fetching history)
+    await save_message(db, student_id, "student", text)
+
+    # Retrieve persistent memory from Letta (if enabled)
+    student_memory = ""
+    if _memory_manager:
+        student_memory = await _memory_manager.get_student_context(student_id)
+
+    # Detect formality register (Вы vs ты) from message, history, and memory
+    formality = detect_formality(text, chat_history, student_memory)
+    logger.debug(f"Formality for {student_id}: {formality}")
 
     # Get teaching response
     response = await agent_runner.respond(
@@ -67,13 +83,23 @@ async def handle_student_message(
         question=text,
         chat_history=chat_history,
         student_level=level,
+        student_memory=student_memory,
+        formality=formality,
     )
 
     # Save assistant response
     await save_message(db, student_id, "assistant", response)
 
+    # Update Letta memory in background (fire-and-forget)
+    if _memory_manager:
+        asyncio.create_task(
+            _memory_manager.update_memory_background(student_id, text, response)
+        )
+
     # Update last active
-    await update_student(db, student_id, {"last_active_at": "now()"})
+    await update_student(db, student_id, {
+        "last_active_at": datetime.now(timezone.utc).isoformat(),
+    })
 
     return response
 
@@ -127,6 +153,16 @@ async def main():
     db = get_db(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
     knowledge_base = KnowledgeBase(db, config.OPENAI_API_KEY)
     agent_runner = TeachingAgentRunner(config.ANTHROPIC_API_KEY, knowledge_base)
+
+    # Initialize Letta memory (optional — graceful degradation if not configured)
+    global _memory_manager
+    if config.LETTA_API_KEY:
+        from memory.letta_memory import StudentMemoryManager
+        _memory_manager = StudentMemoryManager(config.LETTA_API_KEY, config.LETTA_BYOK_MODEL)
+        set_memory_manager(_memory_manager)
+        logger.info("Letta memory enabled")
+    else:
+        logger.info("Letta memory disabled (no LETTA_API_KEY)")
 
     # Start userbot (only if Telegram vars are configured)
     userbot = None

@@ -65,8 +65,38 @@ def get_typing_delay(text_length: int) -> float:
 
 
 def get_message_interval() -> float:
-    """Delay between sending messages to the same user (3-8 seconds)."""
+    """Delay between sending messages to the same user (3-8 seconds).
+    Used as fallback for old-style split_long_message parts.
+    """
     return random.uniform(3.0, 8.0)
+
+
+def get_split_message_delay(part_text: str, is_last: bool = False) -> float:
+    """Variable delay between ---SPLIT--- message parts.
+
+    Mimics how a real person sends multiple messages:
+    - Short connector messages ("ну смотри", "а кстати") → fast follow-up
+    - Normal explanation parts → moderate delay
+    - Afterthought-style parts → longer pause
+    """
+    text = part_text.strip()
+    length = len(text)
+
+    # Short connector messages (< 40 chars) — fast burst typing
+    if length < 40:
+        return random.uniform(1.0, 2.5)
+
+    # Afterthought patterns — longer pause (simulates "oh, one more thing")
+    afterthought_markers = ('а кстати', 'кста,', 'и ещё', 'а,', 'да,', 'ну и')
+    if any(text.lower().startswith(m) for m in afterthought_markers):
+        return random.uniform(5.0, 12.0)
+
+    # Normal explanation parts — moderate delay based on length
+    if length < 150:
+        return random.uniform(2.0, 4.0)
+
+    # Longer parts — person is typing a substantial message
+    return random.uniform(3.0, 6.0)
 
 
 def get_first_contact_delay() -> float:
@@ -76,14 +106,29 @@ def get_first_contact_delay() -> float:
     return random.uniform(30.0, 120.0)
 
 
-def get_read_delay() -> float:
-    """Delay after receiving a message before 'reading' it (2-6 seconds)."""
-    return random.uniform(2.0, 6.0)
+def get_read_delay(message_length: int = 50) -> float:
+    """Delay after receiving a message before 'reading' it.
+    Longer messages take more time to read.
+    Short messages (greetings): 1-3s. Normal: 2-5s. Long: 3-7s.
+    """
+    if message_length < 20:
+        return random.uniform(1.0, 3.0)
+    elif message_length < 100:
+        return random.uniform(2.0, 5.0)
+    else:
+        return random.uniform(3.0, 7.0)
 
 
-def get_thinking_delay() -> float:
-    """Delay to simulate thinking before responding (3-8 seconds)."""
-    return random.uniform(3.0, 8.0)
+def get_thinking_delay(message_length: int = 50) -> float:
+    """Delay to simulate thinking before responding.
+    Simple messages (greetings): 1-3s. Normal: 3-8s. Complex: 5-15s.
+    """
+    if message_length < 20:
+        return random.uniform(1.0, 3.0)
+    elif message_length < 80:
+        return random.uniform(3.0, 8.0)
+    else:
+        return random.uniform(5.0, 12.0)
 
 
 # --- Rate Limiter ---
@@ -174,7 +219,7 @@ class MessageRateLimiter:
 
 def split_long_message(text: str, max_length: int = 2000) -> list[str]:
     """Split a long message into smaller parts at natural break points.
-    Humans don't send 4000-char messages in one go.
+    Fallback for messages that are too long for a single Telegram message.
     """
     if len(text) <= max_length:
         return [text]
@@ -200,3 +245,33 @@ def split_long_message(text: str, max_length: int = 2000) -> list[str]:
         parts.append(remaining.strip())
 
     return parts
+
+
+# Delimiter used by the LLM for multi-message responses
+MSG_SPLIT_DELIMITER = "---SPLIT---"
+
+
+def split_response_messages(text: str, max_part_length: int = 2000) -> list[str]:
+    """Split an LLM response into separate Telegram messages.
+
+    First splits on ---SPLIT--- delimiter (set by the LLM).
+    Then applies split_long_message as fallback for any part that's still too long.
+    Filters out empty parts.
+    """
+    # First: split on the LLM delimiter
+    raw_parts = text.split(MSG_SPLIT_DELIMITER)
+
+    # Process each part: strip whitespace, apply length fallback, filter empties
+    final_parts = []
+    for raw in raw_parts:
+        cleaned = raw.strip()
+        if not cleaned:
+            continue
+        # If a part is still too long, split it further
+        if len(cleaned) > max_part_length:
+            final_parts.extend(split_long_message(cleaned, max_part_length))
+        else:
+            final_parts.append(cleaned)
+
+    # If nothing came out (shouldn't happen), return original as single message
+    return final_parts if final_parts else [text.strip()]

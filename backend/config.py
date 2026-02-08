@@ -58,6 +58,13 @@ class Config:
         self.ANTHROPIC_API_KEY: str = os.getenv('ANTHROPIC_API_KEY', '')
         self.OPENAI_API_KEY: str = os.getenv('OPENAI_API_KEY', '')
 
+        # Letta Memory (optional)
+        self.LETTA_API_KEY: str = os.getenv('LETTA_API_KEY', '')
+        # BYOK model handle — use your own LLM key instead of Letta credits.
+        # Format: "{provider-name}/{model}" e.g. "open-ai-api/gpt-4.1-mini"
+        # The provider name must match what you configured at app.letta.com/models
+        self.LETTA_BYOK_MODEL: str = os.getenv('LETTA_BYOK_MODEL', '')
+
         # App
         self.LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
         self.FASTAPI_PORT: int = int(os.getenv('FASTAPI_PORT', '8000'))

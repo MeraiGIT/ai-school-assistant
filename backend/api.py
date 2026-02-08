@@ -36,6 +36,7 @@ app.add_middleware(
         "http://localhost:3000",
         "http://localhost:3001",
         "http://localhost:3700",
+        "http://localhost:3800",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -47,6 +48,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Will be set by main.py after startup
 _userbot = None
+_memory_manager = None
 _db = None
 _config = None
 
@@ -62,6 +64,11 @@ def get_database():
 def set_userbot(userbot):
     global _userbot
     _userbot = userbot
+
+
+def set_memory_manager(manager):
+    global _memory_manager
+    _memory_manager = manager
 
 
 # --- Documents ---
@@ -146,13 +153,14 @@ async def add_student(data: StudentCreate):
 
     student = await insert_student(db, username, data.display_name)
 
-    # Save welcome message to conversation history (once per student)
+    # Initialize Letta memory for this student (if enabled)
+    if _memory_manager:
+        await _memory_manager.ensure_student(student["id"])
+
+    # Save welcome message to conversation history (must match what Telegram sends)
     welcome_msg = (
-        "Привет! \U0001f44b\n\n"
-        "Я — AI-ассистент курса по генеративному AI. "
-        "Буду помогать с материалами, отвечать на вопросы "
-        "и давать практические задания.\n\n"
-        "Спрашивай что угодно по курсу — я на связи! \U0001f393"
+        "Здравствуйте! Я Павел, буду помогать Вам разобраться "
+        "в курсе по генеративному AI)"
     )
     await save_message(db, student["id"], "assistant", welcome_msg, intent="greeting")
 
