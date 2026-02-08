@@ -37,13 +37,13 @@ def build_teaching_agent(anthropic_key: str, knowledge_base) -> StateGraph:
         return await generate_practice(state, anthropic_key)
 
     async def _greeting(state: TeachingState) -> dict:
-        return await handle_greeting(state)
+        return await handle_greeting(state, anthropic_key)
 
     async def _off_topic(state: TeachingState) -> dict:
-        return await handle_off_topic(state)
+        return await handle_off_topic(state, anthropic_key)
 
     async def _escalate(state: TeachingState) -> dict:
-        return await escalate_to_human(state)
+        return await escalate_to_human(state, anthropic_key)
 
     # Build the graph
     workflow = StateGraph(TeachingState)
