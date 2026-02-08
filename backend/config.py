@@ -83,7 +83,8 @@ class Config:
 
         # App
         self.LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
-        self.FASTAPI_PORT: int = int(os.getenv('FASTAPI_PORT', '8000'))
+        # Railway sets PORT automatically; FASTAPI_PORT is for local dev override
+        self.FASTAPI_PORT: int = int(os.getenv('PORT', os.getenv('FASTAPI_PORT', '8000')))
 
     def __repr__(self) -> str:
         return (
