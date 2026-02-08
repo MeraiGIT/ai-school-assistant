@@ -44,8 +44,8 @@ async def verify_admin_token(request: Request, authorization: str = Header(defau
     Auth endpoints (/api/auth/*) are always allowed through.
     Accepts either Authorization: Bearer <key> header or admin_token HttpOnly cookie.
     """
-    # Skip auth for login/logout endpoints
-    if request.url.path in ("/api/auth/login", "/api/auth/logout"):
+    # Skip auth for public endpoints
+    if request.url.path in ("/api/auth/login", "/api/auth/logout", "/health"):
         return
     config = get_config()
     if not config.ADMIN_API_KEY:
@@ -129,6 +129,14 @@ def set_userbot(userbot):
 def set_memory_manager(manager):
     global _memory_manager
     _memory_manager = manager
+
+
+# --- Health (public, no auth) ---
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 # --- Auth ---
