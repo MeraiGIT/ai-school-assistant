@@ -6,11 +6,24 @@ import os
 import shutil
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config import get_config
+
+
+async def verify_admin_token(authorization: str = Header(default="")):
+    """Check Bearer token on every request.
+
+    If ADMIN_API_KEY is not configured, all requests are allowed (local dev mode).
+    When configured, every request must include: Authorization: Bearer <key>
+    """
+    config = get_config()
+    if not config.ADMIN_API_KEY:
+        return  # No key configured — open access (local dev)
+    if authorization != f"Bearer {config.ADMIN_API_KEY}":
+        raise HTTPException(401, "Unauthorized")
 from database import (
     get_db,
     list_documents,
@@ -28,7 +41,11 @@ from rag.document_processor import process_document
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="AI School Assistant API", version="1.0.0")
+app = FastAPI(
+    title="AI School Assistant API",
+    version="1.0.0",
+    dependencies=[Depends(verify_admin_token)],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,7 +74,7 @@ def get_database():
     global _db, _config
     if _db is None:
         _config = get_config()
-        _db = get_db(_config.SUPABASE_URL, _config.SUPABASE_ANON_KEY)
+        _db = get_db(_config.SUPABASE_URL, _config.SUPABASE_SERVICE_ROLE_KEY)
     return _db
 
 

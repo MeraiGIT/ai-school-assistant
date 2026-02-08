@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CloudUpload, GraduationCap, Sparkles } from "lucide-react";
+import { LayoutDashboard, CloudUpload, GraduationCap, Sparkles, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const links = [
@@ -50,7 +50,17 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-auto pt-4 border-t border-white/8">
+      <div className="mt-auto pt-4 border-t border-white/8 space-y-3">
+        <button
+          onClick={() => {
+            document.cookie = "admin_token=; path=/; max-age=0";
+            window.location.href = "/login";
+          }}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all duration-200 w-full"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span className="font-medium">Sign Out</span>
+        </button>
         <p className="text-xs text-white/30 px-2">Gen AI Course Assistant</p>
       </div>
     </aside>

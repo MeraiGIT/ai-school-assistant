@@ -52,6 +52,12 @@ MEMORY_BLOCKS = [
 ]
 
 
+# Max total chars of memory context injected into the teaching prompt.
+# Enough for real student context (~3 blocks) but bounds the size of
+# any poisoned content a student might trick Letta into writing.
+_MAX_MEMORY_CONTEXT_LENGTH = 2000
+
+
 class StudentMemoryManager:
     """Async wrapper around Letta ai-memory-sdk for per-student memory."""
 
@@ -143,6 +149,15 @@ class StudentMemoryManager:
                     parts.append(value)
 
             context = "\n\n".join(parts)
+
+            # Cap total memory length to limit injection payload from poisoned blocks
+            if len(context) > _MAX_MEMORY_CONTEXT_LENGTH:
+                logger.warning(
+                    f"Letta memory truncated for {student_id}: "
+                    f"{len(context)} -> {_MAX_MEMORY_CONTEXT_LENGTH} chars"
+                )
+                context = context[:_MAX_MEMORY_CONTEXT_LENGTH] + "…"
+
             if context:
                 logger.info(
                     f"Letta memory retrieved for {student_id}: {len(context)} chars"

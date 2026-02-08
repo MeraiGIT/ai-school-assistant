@@ -1,19 +1,45 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function getToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/(?:^|; )admin_token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       ...options?.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      // Token invalid or expired — clear cookie and redirect to login
+      document.cookie = "admin_token=; path=/; max-age=0";
+      window.location.href = "/login";
+      throw new Error("Unauthorized");
+    }
     const error = await res.text();
     throw new Error(error || `Request failed: ${res.status}`);
   }
 
   return res.json();
+}
+
+// Auth
+export async function validateToken(token: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/stats`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 // Stats

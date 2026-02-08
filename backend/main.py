@@ -19,7 +19,7 @@ from database import (
     list_students,
 )
 from agent.teaching_agent import TeachingAgentRunner
-from agent.nodes import detect_formality
+from agent.nodes import detect_formality, validate_response, MSG_SPLIT_DELIMITER
 from rag.knowledge_base import KnowledgeBase
 from telegram.userbot import SchoolUserbot
 from api import app, set_userbot, set_memory_manager, get_database
@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 # Module-level memory manager (None if Letta is disabled)
 _memory_manager = None
+
+# Max student message length (chars). Prevents token abuse and limits injection payload size.
+MAX_MESSAGE_LENGTH = 4000
 
 
 async def handle_student_message(
@@ -59,6 +62,14 @@ async def handle_student_message(
     student_id = student["id"]
     level = student.get("level", "beginner")
 
+    # Truncate extremely long messages (prevents token abuse + limits injection payload)
+    if len(text) > MAX_MESSAGE_LENGTH:
+        logger.warning(f"Truncating message from {student_id}: {len(text)} -> {MAX_MESSAGE_LENGTH} chars")
+        text = text[:MAX_MESSAGE_LENGTH]
+
+    # Strip response delimiter from student input to prevent message boundary manipulation
+    text = text.replace(MSG_SPLIT_DELIMITER, "")
+
     # Get chat history BEFORE saving current message — otherwise the
     # student's message appears in both ИСТОРИЯ ЧАТА and ВОПРОС СТУДЕНТА,
     # wasting tokens and potentially confusing the model.
@@ -86,6 +97,9 @@ async def handle_student_message(
         student_memory=student_memory,
         formality=formality,
     )
+
+    # Validate response for injection indicators before sending
+    response = validate_response(response, formality)
 
     # Save assistant response
     await save_message(db, student_id, "assistant", response)
@@ -150,7 +164,7 @@ async def main():
     logger.info(f"Config: {config}")
 
     # Initialize services
-    db = get_db(config.SUPABASE_URL, config.SUPABASE_ANON_KEY)
+    db = get_db(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY)
     knowledge_base = KnowledgeBase(db, config.OPENAI_API_KEY)
     agent_runner = TeachingAgentRunner(config.ANTHROPIC_API_KEY, knowledge_base)
 

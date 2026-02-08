@@ -19,7 +19,7 @@ class Config:
     # Core vars required for API + agent + RAG
     REQUIRED_ENV_VARS = [
         'SUPABASE_URL',
-        'SUPABASE_ANON_KEY',
+        'SUPABASE_SERVICE_ROLE_KEY',
         'ANTHROPIC_API_KEY',
         'OPENAI_API_KEY',
     ]
@@ -52,7 +52,7 @@ class Config:
 
         # Supabase
         self.SUPABASE_URL: str = os.getenv('SUPABASE_URL', '')
-        self.SUPABASE_ANON_KEY: str = os.getenv('SUPABASE_ANON_KEY', '')
+        self.SUPABASE_SERVICE_ROLE_KEY: str = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
 
         # LLM
         self.ANTHROPIC_API_KEY: str = os.getenv('ANTHROPIC_API_KEY', '')
@@ -64,6 +64,9 @@ class Config:
         # Format: "{provider-name}/{model}" e.g. "open-ai-api/gpt-4.1-mini"
         # The provider name must match what you configured at app.letta.com/models
         self.LETTA_BYOK_MODEL: str = os.getenv('LETTA_BYOK_MODEL', '')
+
+        # Admin auth (optional — if not set, API is open for local dev)
+        self.ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
 
         # App
         self.LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
