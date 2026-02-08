@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CloudUpload, GraduationCap, Sparkles, LogOut } from "lucide-react";
+import { LayoutDashboard, CloudUpload, GraduationCap, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { API_BASE } from "@/lib/api";
 
@@ -19,9 +20,7 @@ export default function Sidebar() {
     <aside className="w-64 glass-sidebar text-white min-h-screen p-5 flex flex-col">
       <div className="mb-8 px-2">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[#007AFF] flex items-center justify-center shadow-lg shadow-[#007AFF]/20">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
+          <Image src="/logo.png" alt="AI School" width={36} height={36} className="rounded-xl" />
           <div>
             <h1 className="text-lg font-semibold text-white tracking-tight">AI School</h1>
             <p className="text-xs text-white/40">Admin Panel</p>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Sparkles, LogIn, AlertCircle, Lock, Eye, EyeOff } from "lucide-react";
+import { LogIn, AlertCircle, Lock, Eye, EyeOff } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 export default function LoginPage() {
@@ -53,9 +54,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] mx-4 animate-fade-in-up">
         {/* Header */}
         <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-[#007AFF] flex items-center justify-center mx-auto mb-5 shadow-lg shadow-[#007AFF]/25">
-            <Sparkles className="w-8 h-8 text-white" />
-          </div>
+          <Image src="/logo.png" alt="AI School" width={72} height={72} className="rounded-2xl mx-auto mb-5 shadow-lg" />
           <h1 className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
             AI School
           </h1>
