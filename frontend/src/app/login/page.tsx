@@ -2,12 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { LogIn, AlertCircle, Lock, Eye, EyeOff } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +34,7 @@ export default function LoginPage() {
       if (res.ok) {
         // Non-sensitive flag for frontend proxy redirect gate
         document.cookie = "admin_logged_in=true; path=/; max-age=86400; SameSite=Lax";
-        router.push("/");
+        window.location.href = "/";
       } else if (res.status === 429) {
         setError("Too many attempts. Try again later.");
       } else {
