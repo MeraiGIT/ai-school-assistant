@@ -1,4 +1,6 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// All /api/* calls are proxied through Vercel rewrites (next.config.ts)
+// to the backend, so cookies stay same-origin. No cross-origin issues.
+export const API_BASE = "";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
