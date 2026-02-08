@@ -1,5 +1,6 @@
 """LangGraph teaching agent for AI School Assistant."""
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -133,5 +134,9 @@ class TeachingAgentRunner:
             "formality": formality,
         }
 
-        result = await self.agent.ainvoke(state)
-        return result.get("answer", "Извини, произошла ошибка. Попробуй ещё раз.")
+        try:
+            result = await asyncio.wait_for(self.agent.ainvoke(state), timeout=120)
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.error(f"Agent pipeline failed: {type(e).__name__}: {e}")
+            return ""
+        return result.get("answer", "")

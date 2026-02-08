@@ -464,6 +464,15 @@ class SchoolUserbot:
             logger.error(f'Error greeting @{username}: {e}')
             return None
 
+    async def notify_admin(self, admin_username: str, text: str):
+        """Send a notification to the admin. No delays or rate limiting."""
+        if not admin_username or not self.client.is_connected():
+            return
+        try:
+            await self.client.send_message(admin_username, text)
+        except Exception as e:
+            logger.error(f'Failed to notify admin @{admin_username}: {e}')
+
     async def run_forever(self):
         """Keep the client running."""
         await self.client.run_until_disconnected()

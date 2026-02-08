@@ -308,6 +308,7 @@ async def remove_student(student_id: str):
 
 @app.get("/api/conversations/{student_id}")
 async def get_conversations(student_id: str, limit: int = 50):
+    limit = min(max(limit, 1), 200)
     db = get_database()
     return await get_conversation_history(db, student_id, limit)
 

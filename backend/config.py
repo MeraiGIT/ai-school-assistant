@@ -68,6 +68,9 @@ class Config:
         # Admin auth (optional — if not set, API is open for local dev)
         self.ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
 
+        # Telegram username to notify on API errors (without @)
+        self.ADMIN_TELEGRAM_USERNAME: str = os.getenv('ADMIN_TELEGRAM_USERNAME', '')
+
         # App
         self.LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
         self.FASTAPI_PORT: int = int(os.getenv('FASTAPI_PORT', '8000'))

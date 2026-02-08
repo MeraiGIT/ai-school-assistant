@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 
 import uvicorn
@@ -28,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 # Module-level memory manager (None if Letta is disabled)
 _memory_manager = None
+
+# Module-level refs for admin notifications
+_userbot_ref = None
+_admin_username = ""
+
+# Debounce admin notifications: max 1 per 5 minutes
+_last_admin_notify = 0.0
+_ADMIN_NOTIFY_INTERVAL = 300  # seconds
 
 # Max student message length (chars). Prevents token abuse and limits injection payload size.
 MAX_MESSAGE_LENGTH = 4000
@@ -97,6 +106,22 @@ async def handle_student_message(
         student_memory=student_memory,
         formality=formality,
     )
+
+    # Empty response = API error or timeout. Silently drop — don't send
+    # anything to the student (a real person just wouldn't reply).
+    # Notify admin so they know something is wrong.
+    if not response:
+        global _last_admin_notify
+        now = time.monotonic()
+        if _userbot_ref and _admin_username and (now - _last_admin_notify) > _ADMIN_NOTIFY_INTERVAL:
+            _last_admin_notify = now
+            asyncio.create_task(
+                _userbot_ref.notify_admin(
+                    _admin_username,
+                    f"API error: не удалось ответить студенту {student_id}. Проверь логи.",
+                )
+            )
+        return ""
 
     # Validate response for injection indicators before sending
     response = validate_response(response, formality)
@@ -168,7 +193,7 @@ async def main():
     agent_runner = TeachingAgentRunner(config.ANTHROPIC_API_KEY, knowledge_base)
 
     # Initialize Letta memory (optional — graceful degradation if not configured)
-    global _memory_manager
+    global _memory_manager, _userbot_ref, _admin_username
     if config.LETTA_API_KEY:
         from memory.letta_memory import StudentMemoryManager
         _memory_manager = StudentMemoryManager(config.LETTA_API_KEY, config.LETTA_BYOK_MODEL)
@@ -183,6 +208,8 @@ async def main():
         Config.validate_telegram()
         userbot = await start_userbot(config, db, agent_runner)
         set_userbot(userbot)
+        _userbot_ref = userbot
+        _admin_username = config.ADMIN_TELEGRAM_USERNAME
         logger.info("Telegram userbot started")
     except ConfigurationError as e:
         logger.warning(f"Telegram not configured: {e}")
