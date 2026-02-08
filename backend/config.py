@@ -68,6 +68,16 @@ class Config:
         # Admin auth (optional — if not set, API is open for local dev)
         self.ADMIN_API_KEY: str = os.getenv('ADMIN_API_KEY', '')
 
+        # CORS origins (comma-separated). Defaults to localhost for dev.
+        self.ALLOWED_ORIGINS: list[str] = [
+            o.strip() for o in os.getenv('ALLOWED_ORIGINS', '').split(',') if o.strip()
+        ] or [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:3700",
+            "http://localhost:3800",
+        ]
+
         # Telegram username to notify on API errors (without @)
         self.ADMIN_TELEGRAM_USERNAME: str = os.getenv('ADMIN_TELEGRAM_USERNAME', '')
 

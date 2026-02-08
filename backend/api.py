@@ -77,24 +77,30 @@ from rag.document_processor import process_document
 
 logger = logging.getLogger(__name__)
 
+_startup_config = get_config()
+
+# Disable docs/redoc in production (when ADMIN_API_KEY is set)
+_docs_url = "/docs" if not _startup_config.ADMIN_API_KEY else None
+_redoc_url = "/redoc" if not _startup_config.ADMIN_API_KEY else None
+
 app = FastAPI(
     title="AI School Assistant API",
     version="1.0.0",
     dependencies=[Depends(verify_admin_token)],
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
+    openapi_url="/openapi.json" if not _startup_config.ADMIN_API_KEY else None,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3700",
-        "http://localhost:3800",
-    ],
+    allow_origins=_startup_config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_VALID_MODULES = {"general", "week1", "week2", "week3", "week4", "week5", "week6", "week7", "week8"}
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -142,12 +148,17 @@ async def login(data: LoginRequest, request: Request, response: Response):
     if not config.ADMIN_API_KEY or not hmac.compare_digest(data.key, config.ADMIN_API_KEY):
         raise HTTPException(401, "Invalid key")
 
+    # Behind a reverse proxy (Railway, etc.) X-Forwarded-Proto tells us the real scheme
+    is_https = (
+        request.headers.get("x-forwarded-proto", "") == "https"
+        or request.url.scheme == "https"
+    )
     response.set_cookie(
         key="admin_token",
         value=config.ADMIN_API_KEY,
         httponly=True,
         samesite="lax",
-        secure=request.url.scheme == "https",
+        secure=is_https,
         max_age=86400,
         path="/",
     )
@@ -169,6 +180,9 @@ async def upload_document(
     title: Optional[str] = Form(None),
     module: str = Form("general"),
 ):
+    if module not in _VALID_MODULES:
+        raise HTTPException(400, f"Invalid module. Must be one of: {', '.join(sorted(_VALID_MODULES))}")
+
     allowed_ext = {".pdf", ".docx", ".txt"}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed_ext:
@@ -286,12 +300,20 @@ async def add_student(data: StudentCreate):
     return student
 
 
+_VALID_LEVELS = {"beginner", "intermediate", "advanced"}
+_VALID_STATUSES = {"active", "pending", "paused"}
+
+
 @app.patch("/api/students/{student_id}")
 async def modify_student(student_id: str, data: StudentUpdate):
     db = get_database()
     updates = {k: v for k, v in data.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(400, "No updates provided")
+    if "level" in updates and updates["level"] not in _VALID_LEVELS:
+        raise HTTPException(400, f"Invalid level. Must be one of: {', '.join(_VALID_LEVELS)}")
+    if "status" in updates and updates["status"] not in _VALID_STATUSES:
+        raise HTTPException(400, f"Invalid status. Must be one of: {', '.join(_VALID_STATUSES)}")
     await update_student(db, student_id, updates)
     return {"status": "updated"}
 

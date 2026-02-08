@@ -295,6 +295,8 @@ async def classify_intent(state: TeachingState, anthropic_key: str) -> dict:
         logger.error(f"classify_intent failed: {type(e).__name__}: {e}")
         return {"intent": "question", "needs_human": False}
 
+    if not response.content:
+        return {"intent": "question", "needs_human": False}
     intent = response.content[0].text.strip().lower()
     valid_intents = {'question', 'clarification', 'practice', 'stuck', 'off_topic', 'greeting'}
     if intent not in valid_intents:
@@ -326,7 +328,7 @@ async def generate_answer(state: TeachingState, anthropic_key: str) -> dict:
         formality_instructions=formality_instructions,
     )
 
-    context = state.get('retrieved_docs', '')
+    context = _escape_xml(state.get('retrieved_docs', ''))
     history_text = _format_chat_history(state.get('chat_history', []), limit=5)
 
     student_memory = _escape_xml(state.get('student_memory', ''))
@@ -366,6 +368,8 @@ async def generate_answer(state: TeachingState, anthropic_key: str) -> dict:
         logger.error(f"generate_answer failed: {type(e).__name__}: {e}")
         return {"answer": ""}
 
+    if not response.content:
+        return {"answer": ""}
     answer = response.content[0].text
     logger.info(f"Generated answer: {len(answer)} chars")
     return {"answer": answer}
@@ -394,7 +398,7 @@ async def generate_practice(state: TeachingState, anthropic_key: str) -> dict:
                     "role": "user",
                     "content": (
                         f"<student_message>\n{_escape_xml(state['question'])}\n</student_message>\n\n"
-                        f"<course_materials>\n{state.get('retrieved_docs', '')}\n</course_materials>"
+                        f"<course_materials>\n{_escape_xml(state.get('retrieved_docs', ''))}\n</course_materials>"
                     ),
                 }],
             ),
@@ -404,6 +408,8 @@ async def generate_practice(state: TeachingState, anthropic_key: str) -> dict:
         logger.error(f"generate_practice failed: {type(e).__name__}: {e}")
         return {}  # Keep the answer without practice
 
+    if not response.content:
+        return {}
     practice = response.content[0].text
     # Combine answer and practice with a split delimiter between them
     answer_part = state.get('answer', '')
@@ -506,6 +512,20 @@ _INJECTION_INDICATORS = [
     "i don't have emotions",
     "i was created by",
     "i was trained by",
+    # Bot/AI identity admissions (Russian)
+    "я бот",
+    "я — бот",
+    "я нейросеть",
+    "я — нейросеть",
+    "я программа",
+    "я — программа",
+    # Model/company name leakage
+    "я claude",
+    "я — claude",
+    "created by anthropic",
+    "made by anthropic",
+    "i am claude",
+    "i'm claude",
     # System prompt leakage (unique multi-word fragments from our actual prompt)
     "безопасность (абсолютные правила",
     "flood_sleep_threshold",

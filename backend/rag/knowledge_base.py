@@ -29,7 +29,7 @@ class KnowledgeBase:
         self,
         query: str,
         match_count: int = 5,
-        threshold: float = 0.2,
+        threshold: float = 0.5,
     ) -> list[dict]:
         """Search for relevant course material chunks.
 

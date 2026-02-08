@@ -187,6 +187,12 @@ async def main():
 
     logger.info("Starting AI School Assistant")
 
+    # Warn about short admin API key (user wants it short, so just warn)
+    if config.ADMIN_API_KEY and len(config.ADMIN_API_KEY) < 12:
+        logger.warning(
+            "ADMIN_API_KEY is shorter than 12 characters — consider a longer key for production"
+        )
+
     # Initialize services
     db = get_db(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY)
     knowledge_base = KnowledgeBase(db, config.OPENAI_API_KEY)
