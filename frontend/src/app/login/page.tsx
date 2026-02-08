@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, LogIn, AlertCircle, Lock, Eye, EyeOff } from "lucide-react";
-import { validateToken } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,12 +24,25 @@ export default function LoginPage() {
       return;
     }
 
-    const valid = await validateToken(trimmed);
-    if (valid) {
-      document.cookie = `admin_token=${encodeURIComponent(trimmed)}; path=/; max-age=86400; SameSite=Strict`;
-      router.push("/");
-    } else {
-      setError("Invalid key");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: trimmed }),
+      });
+
+      if (res.ok) {
+        // Non-sensitive flag for frontend proxy redirect gate
+        document.cookie = "admin_logged_in=true; path=/; max-age=86400; SameSite=Lax";
+        router.push("/");
+      } else if (res.status === 429) {
+        setError("Too many attempts. Try again later.");
+      } else {
+        setError("Invalid key");
+      }
+    } catch {
+      setError("Connection error");
     }
 
     setLoading(false);

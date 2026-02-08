@@ -160,8 +160,7 @@ async def main():
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    logger.info(f"Starting AI School Assistant")
-    logger.info(f"Config: {config}")
+    logger.info("Starting AI School Assistant")
 
     # Initialize services
     db = get_db(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY)

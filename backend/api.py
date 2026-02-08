@@ -1,29 +1,65 @@
 """FastAPI routes for AI School Assistant admin panel."""
 
 import asyncio
+import hmac
 import logging
 import os
 import shutil
+import time
+from collections import defaultdict
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, Header, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from config import get_config
 
 
-async def verify_admin_token(authorization: str = Header(default="")):
-    """Check Bearer token on every request.
+class _LoginRateLimiter:
+    """In-memory rate limiter for login attempts."""
+
+    def __init__(self, max_attempts: int = 5, window_seconds: int = 60):
+        self.max_attempts = max_attempts
+        self.window = window_seconds
+        self._attempts: dict[str, list[float]] = defaultdict(list)
+
+    def check(self, ip: str) -> bool:
+        now = time.monotonic()
+        attempts = self._attempts[ip]
+        attempts[:] = [t for t in attempts if now - t < self.window]
+        if len(attempts) >= self.max_attempts:
+            return False
+        attempts.append(now)
+        return True
+
+
+_login_limiter = _LoginRateLimiter()
+
+
+async def verify_admin_token(request: Request, authorization: str = Header(default="")):
+    """Check Bearer token or HttpOnly cookie on every request.
 
     If ADMIN_API_KEY is not configured, all requests are allowed (local dev mode).
-    When configured, every request must include: Authorization: Bearer <key>
+    Auth endpoints (/api/auth/*) are always allowed through.
+    Accepts either Authorization: Bearer <key> header or admin_token HttpOnly cookie.
     """
+    # Skip auth for login/logout endpoints
+    if request.url.path in ("/api/auth/login", "/api/auth/logout"):
+        return
     config = get_config()
     if not config.ADMIN_API_KEY:
         return  # No key configured — open access (local dev)
-    if authorization != f"Bearer {config.ADMIN_API_KEY}":
-        raise HTTPException(401, "Unauthorized")
+    # Check Authorization header (for API clients / curl)
+    if authorization.startswith("Bearer ") and hmac.compare_digest(
+        authorization[7:], config.ADMIN_API_KEY
+    ):
+        return
+    # Check HttpOnly cookie (for browser frontend)
+    cookie_token = request.cookies.get("admin_token", "")
+    if cookie_token and hmac.compare_digest(cookie_token, config.ADMIN_API_KEY):
+        return
+    raise HTTPException(401, "Unauthorized")
 from database import (
     get_db,
     list_documents,
@@ -62,6 +98,7 @@ app.add_middleware(
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100 MB
 
 # Will be set by main.py after startup
 _userbot = None
@@ -88,6 +125,41 @@ def set_memory_manager(manager):
     _memory_manager = manager
 
 
+# --- Auth ---
+
+
+class LoginRequest(BaseModel):
+    key: str
+
+
+@app.post("/api/auth/login")
+async def login(data: LoginRequest, request: Request, response: Response):
+    ip = request.client.host if request.client else "unknown"
+    if not _login_limiter.check(ip):
+        raise HTTPException(429, "Too many login attempts. Try again later.")
+
+    config = get_config()
+    if not config.ADMIN_API_KEY or not hmac.compare_digest(data.key, config.ADMIN_API_KEY):
+        raise HTTPException(401, "Invalid key")
+
+    response.set_cookie(
+        key="admin_token",
+        value=config.ADMIN_API_KEY,
+        httponly=True,
+        samesite="lax",
+        secure=request.url.scheme == "https",
+        max_age=86400,
+        path="/",
+    )
+    return {"status": "ok"}
+
+
+@app.post("/api/auth/logout")
+async def logout(response: Response):
+    response.delete_cookie(key="admin_token", path="/")
+    return {"status": "ok"}
+
+
 # --- Documents ---
 
 
@@ -102,7 +174,20 @@ async def upload_document(
     if ext not in allowed_ext:
         raise HTTPException(400, f"Unsupported file type: {ext}. Use .pdf, .docx, or .txt")
 
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
+    # Check file size (read into memory to measure, then reset)
+    contents = await file.read()
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(400, f"File too large ({len(contents) // (1024*1024)}MB). Max is 100MB.")
+    await file.seek(0)
+
+    # Sanitize filename to prevent path traversal (e.g. "../../.env")
+    safe_name = os.path.basename(file.filename)
+    if not safe_name:
+        raise HTTPException(400, "Invalid filename")
+    file_path = os.path.join(UPLOAD_DIR, safe_name)
+    # Belt-and-suspenders: verify resolved path stays inside upload dir
+    if not os.path.realpath(file_path).startswith(os.path.realpath(UPLOAD_DIR)):
+        raise HTTPException(400, "Invalid filename")
     try:
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
@@ -120,7 +205,7 @@ async def upload_document(
 
     except Exception as e:
         logger.error(f"Upload failed: {e}")
-        raise HTTPException(500, f"Processing failed: {str(e)}")
+        raise HTTPException(500, "Processing failed")
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)

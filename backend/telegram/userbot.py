@@ -15,6 +15,8 @@ Safety measures:
 
 import asyncio
 import logging
+import time
+from collections import defaultdict
 from typing import Optional, Callable, Awaitable
 
 from telethon import TelegramClient, events
@@ -109,6 +111,13 @@ class SchoolUserbot:
             max_per_day=200,
         )
 
+        # Inbound rate limiter: per-student message timestamps.
+        # Prevents API cost explosion from spam. Generous limits:
+        # max 10 messages/min per student, min 2s between messages.
+        self._inbound_timestamps: dict[int, list[float]] = defaultdict(list)
+        self._inbound_max_per_min = 10
+        self._inbound_min_gap_s = 2.0
+
         # Greeting queue: greetings are processed one-at-a-time
         self._greeting_queue: asyncio.Queue = asyncio.Queue()
         self._greeting_task: Optional[asyncio.Task] = None
@@ -179,6 +188,45 @@ class SchoolUserbot:
 
         if not self._on_student_message:
             return
+
+        # --- Unknown sender gate ---
+        # Known students get full human-like processing (semaphore, delays, etc.).
+        # Unknown senders get a lightweight username check WITHOUT acquiring the
+        # semaphore or simulating behavior — prevents DoS from strangers blocking
+        # real students and avoids leaking read receipts to non-students.
+        if sender_id not in self._known_student_ids:
+            if not username:
+                logger.debug(f'Ignoring unknown sender {sender_id} (no username)')
+                return
+            try:
+                response = await self._on_student_message(sender_id, username, text)
+                if response:
+                    # Resolved by username — register for future fast-path
+                    self._known_student_ids.add(sender_id)
+                    await self._send_response_as_messages(sender_id, response)
+                else:
+                    logger.debug(f'Ignoring unregistered sender {sender_id} (@{username})')
+            except Exception as e:
+                logger.error(f'Error checking unknown sender {sender_id}: {e}')
+            return
+
+        # --- Inbound rate limit check ---
+        # Drop messages from students who are sending too fast.
+        now = time.monotonic()
+        timestamps = self._inbound_timestamps[sender_id]
+        # Prune entries older than 60s
+        timestamps[:] = [t for t in timestamps if now - t < 60]
+        # Check minimum gap
+        if timestamps and (now - timestamps[-1]) < self._inbound_min_gap_s:
+            logger.debug(f'Rate limit: {sender_id} sending too fast (gap < {self._inbound_min_gap_s}s)')
+            return
+        # Check per-minute cap
+        if len(timestamps) >= self._inbound_max_per_min:
+            logger.warning(f'Rate limit: {sender_id} exceeded {self._inbound_max_per_min} msgs/min')
+            return
+        timestamps.append(now)
+
+        # --- Known student: full human-like processing ---
 
         # Signal that a new message arrived from this user.
         # If _send_response_as_messages is currently sending parts for an

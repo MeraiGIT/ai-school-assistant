@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, CloudUpload, GraduationCap, Sparkles, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_BASE } from "@/lib/api";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -52,8 +53,14 @@ export default function Sidebar() {
 
       <div className="mt-auto pt-4 border-t border-white/8 space-y-3">
         <button
-          onClick={() => {
-            document.cookie = "admin_token=; path=/; max-age=0";
+          onClick={async () => {
+            try {
+              await fetch(`${API_BASE}/api/auth/logout`, {
+                method: "POST",
+                credentials: "include",
+              });
+            } catch {}
+            document.cookie = "admin_logged_in=; path=/; max-age=0";
             window.location.href = "/login";
           }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-all duration-200 w-full"

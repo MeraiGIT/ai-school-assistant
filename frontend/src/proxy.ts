@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get("admin_token")?.value;
+  const token = request.cookies.get("admin_logged_in")?.value;
 
   // Allow login page, static assets, and Next.js internals
   if (
