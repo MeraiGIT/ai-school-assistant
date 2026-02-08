@@ -20,7 +20,7 @@ export default function Sidebar() {
     <aside className="w-64 glass-sidebar text-white min-h-screen p-5 flex flex-col">
       <div className="mb-8 px-2">
         <div className="flex items-center gap-3">
-          <Image src="/logo.png" alt="AI School" width={36} height={36} className="rounded-xl" />
+          <Image src="/logo.png" alt="AI School" width={36} height={36} unoptimized className="rounded-xl" />
           <div>
             <h1 className="text-lg font-semibold text-white tracking-tight">AI School</h1>
             <p className="text-xs text-white/40">Admin Panel</p>

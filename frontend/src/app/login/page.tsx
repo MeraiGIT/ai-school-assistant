@@ -54,7 +54,7 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] mx-4 animate-fade-in-up">
         {/* Header */}
         <div className="text-center mb-10">
-          <Image src="/logo.png" alt="AI School" width={72} height={72} className="rounded-2xl mx-auto mb-5 shadow-lg" />
+          <Image src="/logo.png" alt="AI School" width={72} height={72} unoptimized className="rounded-2xl mx-auto mb-5 shadow-lg" />
           <h1 className="text-2xl font-semibold text-[#1D1D1F] tracking-tight">
             AI School
           </h1>
